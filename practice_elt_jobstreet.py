@@ -64,7 +64,7 @@ def fetch_html():
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.get(website)
      
-        for i in range(20):
+        for i in range(5):
            job_buttons = driver.find_elements(By.XPATH, '//article[@data-testid="job-card"]')
 
            if i >= len(job_buttons):
@@ -186,9 +186,9 @@ def insert_to_impala():
     cursor = conn.cursor()
 
     insert_query = """
-        INSERT INTO nabila.tmp_result_scrape_jobstreet (job_titles, dates, `location`, type_work, classification, company, salary)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
-    """
+        INSERT INTO nabila.tmp_result_scrape_jobstreet PARTITION (load_date='{}')
+        SELECT %s, %s, %s, %s, %s, %s, %s
+        """.format(pd.Timestamp.now().strftime('%Y-%m-%d'))
 
     all_data = pd.read_csv('scraped_data.csv')
     all_data = all_data.astype(object).where(pd.notnull(all_data), None)
@@ -216,8 +216,14 @@ def transform_data():
                             ,REGEXP_EXTRACT(classification, '\\\\((.*?)\\\\)', 1) AS classification
                             ,company
                             ,salary
-                            ,CAST(REGEXP_EXTRACT(REGEXP_REPLACE(SPLIT_PART(salary, '–', 1),'[^0-9]', ''),'([0-9]+)', 1) AS INT) AS min_salary
-                            ,CAST(REGEXP_EXTRACT(REGEXP_REPLACE(SPLIT_PART(salary, '–', 2),'[^0-9]', ''),'([0-9]+)', 1) AS INT) AS max_salary
+                            ,CASE 
+                                WHEN salary IS NULL THEN 0
+                                ELSE CAST(REGEXP_EXTRACT(REGEXP_REPLACE(SPLIT_PART(salary, '–', 1),'[^0-9]', ''),'([0-9]+)', 1) AS INT) 
+                            END AS min_salary
+                            ,CASE 
+                                WHEN salary IS NULL THEN 0
+                                ELSE CAST(REGEXP_EXTRACT(REGEXP_REPLACE(SPLIT_PART(salary, '–', 2),'[^0-9]', ''),'([0-9]+)', 1) AS INT) 
+                                END AS max_salary
                         FROM nabila.tmp_result_scrape_jobstreet
                         ) 
                         ,tmp_2 AS(
@@ -265,7 +271,6 @@ def transform_data():
                             ,CASE
                             WHEN TRIM(city) = 'Jakarta Raya' THEN 'DKI Jakarta'
                             WHEN TRIM(prov) = 'JAKARTA RAYA' THEN 'DKI Jakarta'
-                            WHEN TRIM(prov) = 'Bali' THEN 'Bali'
                             ELSE prov
                             END AS prov
                             ,classification
