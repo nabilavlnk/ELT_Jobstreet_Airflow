@@ -11,14 +11,14 @@ Workflow ini dijalankan dan diatur menggunakan **Apache Airflow** dalam containe
 
 ### 1. **Extract**
 Proses scraping data dari halaman Jobstreet menggunakan selenium.
-- Informasi yang diambil:
-  - **Job Title**
-  - **Dates**
-  - **Location**
-  - **Type Work**
-  - **Classification**
-  - **Company**
-  - **Salary** (Jika tersedia)
+Informasi yang diambil:
+- **Job Title**
+- **Dates**
+- **Location**
+- **Type Work**
+- **Classification**
+- **Company**
+- **Salary** (Jika tersedia)
 
 ### 2. **Load**
 Data hasil scraping disimpan sementara dalam format CSV, kemudian dimuat ke Impala agar bisa di-query untuk kebutuhan query analitik.
