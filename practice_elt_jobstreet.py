@@ -64,7 +64,7 @@ def fetch_html():
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.get(website)
      
-        for i in range(5):
+        for i in range(20):
            job_buttons = driver.find_elements(By.XPATH, '//article[@data-testid="job-card"]')
 
            if i >= len(job_buttons):
@@ -186,7 +186,7 @@ def insert_to_impala():
     cursor = conn.cursor()
 
     insert_query = """
-        INSERT INTO nabila.tmp_result_scrape_jobstreet PARTITION (load_date='{}')
+        INSERT OVERWRITE nabila.tmp_result_scrape_jobstreet PARTITION (load_date='{}')
         SELECT %s, %s, %s, %s, %s, %s, %s
         """.format(pd.Timestamp.now().strftime('%Y-%m-%d'))
 
@@ -225,6 +225,7 @@ def transform_data():
                                 ELSE CAST(REGEXP_EXTRACT(REGEXP_REPLACE(SPLIT_PART(salary, '–', 2),'[^0-9]', ''),'([0-9]+)', 1) AS INT) 
                                 END AS max_salary
                         FROM nabila.tmp_result_scrape_jobstreet
+                        WHERE load_date = CURRENT_DATE()
                         ) 
                         ,tmp_2 AS(
                         SELECT
@@ -335,7 +336,7 @@ default_args = {
 
 with DAG(dag_id='practice_elt_jobstreet',
          start_date=datetime(2025, 7, 1),
-         schedule_interval=None,
+         schedule_interval="0 11 * * 1-5",
          catchup=False) as dag:
         
         fetch_html = PythonOperator(
