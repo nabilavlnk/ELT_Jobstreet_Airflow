@@ -167,7 +167,9 @@ def fetch_html():
         })
 
         print(all_data.head())
-        all_data.to_csv('scraped_data.csv', index=False)
+        output = "/opt/airflow/output/scraped_data.csv"
+        all_data.to_csv(output, index=False, mode='w')
+        print("Data berhasil disimpan")
 
 def impala_connection():
     return connect(
@@ -186,11 +188,11 @@ def insert_to_impala():
     cursor = conn.cursor()
 
     insert_query = """
-        INSERT OVERWRITE nabila.tmp_result_scrape_jobstreet PARTITION (load_date='{}')
+        INSERT INTO nabila.tmp_result_scrape_jobstreet PARTITION (load_date='{}')
         SELECT %s, %s, %s, %s, %s, %s, %s
         """.format(pd.Timestamp.now().strftime('%Y-%m-%d'))
 
-    all_data = pd.read_csv('scraped_data.csv')
+    all_data = pd.read_csv('/opt/airflow/output/scraped_data.csv')
     all_data = all_data.astype(object).where(pd.notnull(all_data), None)
     cursor.executemany(insert_query, list(all_data.itertuples(index=False, name=None)))
 
@@ -225,7 +227,6 @@ def transform_data():
                                 ELSE CAST(REGEXP_EXTRACT(REGEXP_REPLACE(SPLIT_PART(salary, '–', 2),'[^0-9]', ''),'([0-9]+)', 1) AS INT) 
                                 END AS max_salary
                         FROM nabila.tmp_result_scrape_jobstreet
-                        WHERE load_date = CURRENT_DATE()
                         ) 
                         ,tmp_2 AS(
                         SELECT
