@@ -176,6 +176,13 @@ with st.sidebar:
 ####################### DASHBOARD #######################
 st.markdown("### 📈 Visualization Dashboard")
 
+filtered_data['avg_salary'] = (
+    filtered_data['avg_salary']
+    .astype(str)           # pastikan string
+    .str.replace(',', '')  # buang koma
+    .astype(float)         # ubah ke float
+)
+
 # Hitung unique
 total_job_titles = filtered_data['job_titles'].count()
 total_companies = filtered_data['company'].nunique()
@@ -235,7 +242,8 @@ line_chart = alt.Chart(job_count).mark_line().encode(
             ),
     y=alt.Y('total_postings:Q', 
             title='Total of Job Vacancies',
-            axis=alt.Axis(format='d', tickMinStep=1)
+            scale=alt.Scale(domainMin=0, nice=False),
+            axis=alt.Axis(tickMinStep=1, tickCount=len(job_count['total_postings'].unique()), format='d')
             ),
     tooltip=[
         alt.Tooltip('posting_date_str:N', title='Date'),
@@ -357,18 +365,17 @@ bar_class = alt.Chart(classification_counts).mark_bar().encode(
 )
 
 ####### BAR CHART JOB_TITLES PER COMPANY
-company_counts = filtered_data.groupby('company')['job_titles'].count().reset_index()
-company_counts = company_counts.sort_values(by='job_titles', ascending=False)
+company_counts = filtered_data.groupby('company').size().reset_index(name='job_count')
+print(company_counts.dtypes)
+print(company_counts.head())
+company_counts = company_counts.sort_values(by='job_count', ascending=False)
 
 bar_comp = alt.Chart(company_counts).mark_bar().encode(
     x=alt.X('company:N',
-            sort=alt.EncodingSortField(field='job_titles', order='descending'),
+            sort=alt.SortField(field='job_count', order='descending'),
             title='Company'),
-    y=alt.Y('job_titles:Q', 
-            title='Job Vacancies',
-            axis=alt.Axis(format='d')
-            ),
-    tooltip=['company', 'job_titles']
+    y=alt.Y('job_count:Q', title='Job Vacancies', axis=alt.Axis(format='d')),
+    tooltip=['company', 'job_count']
 ).properties(
     width=700,
     height=400
