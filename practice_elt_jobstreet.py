@@ -218,14 +218,18 @@ def transform_data():
                             ,REGEXP_EXTRACT(classification, '\\\\((.*?)\\\\)', 1) AS classification
                             ,company
                             ,salary
-                            ,CASE 
-                                WHEN salary IS NULL THEN 0
-                                ELSE CAST(REGEXP_EXTRACT(REGEXP_REPLACE(SPLIT_PART(salary, '–', 1),'[^0-9]', ''),'([0-9]+)', 1) AS INT) 
-                            END AS min_salary
-                            ,CASE 
-                                WHEN salary IS NULL THEN 0
-                                ELSE CAST(REGEXP_EXTRACT(REGEXP_REPLACE(SPLIT_PART(salary, '–', 2),'[^0-9]', ''),'([0-9]+)', 1) AS INT) 
-                                END AS max_salary
+                            ,COALESCE(CAST(REGEXP_EXTRACT(
+                            REGEXP_REPLACE(SPLIT_PART(salary, '–', 1), '[^0-9]', ''), 
+                            '([0-9]+)', 1
+                            ) AS INT
+                            ),0
+                            ) AS min_salary
+                            ,COALESCE(CAST(REGEXP_EXTRACT(
+                            REGEXP_REPLACE(SPLIT_PART(salary, '–', 2), '[^0-9]', ''), 
+                            '([0-9]+)', 1
+                            ) AS INT
+                            ),0
+                            ) AS max_salary
                         FROM nabila.tmp_result_scrape_jobstreet
                         ) 
                         ,tmp_2 AS(
@@ -240,8 +244,8 @@ def transform_data():
                             ELSE DATE_SUB(NOW(), 31)
                             END AS posting_date
                             ,type_work
-                            ,city
-                            ,prov
+                            ,UPPER(TRIM(city)) AS city
+                            ,UPPER(TRIM(prov)) AS prov
                             ,classification
                             ,company
                             ,min_salary
@@ -271,9 +275,9 @@ def transform_data():
                             ,type_work
                             ,city
                             ,CASE
-                            WHEN TRIM(city) = 'Jakarta Raya' THEN 'DKI Jakarta'
-                            WHEN TRIM(prov) = 'JAKARTA RAYA' THEN 'DKI Jakarta'
-                            ELSE prov
+                                WHEN city = 'JAKARTA RAYA' THEN 'DKI JAKARTA'
+                                WHEN prov = 'JAKARTA RAYA' THEN 'DKI JAKARTA'
+                                ELSE prov
                             END AS prov
                             ,classification
                             ,company
@@ -285,12 +289,21 @@ def transform_data():
                         ) 
                         ,tmp_5 AS(
                         SELECT
-                            a.*
+                            a.job_titles
+                            ,a.posting_date
+                            ,a.type_work
+                            ,a.city
+                            ,a.prov
+                            ,a.classification
+                            ,a.company
+                            ,a.min_salary
+                            ,a.max_salary
+                            ,a.avg_salary
                             ,b.lat as lat
                             ,b.long as long
                         FROM tmp_4 a
                         LEFT JOIN nabila.long_lat_prov_ind b
-                        ON LOWER(TRIM(a.prov)) = LOWER(TRIM(b.name))
+                        ON a.prov = b.name
                         )
                         INSERT OVERWRITE TABLE nabila.result_scrape_jobstreet
                         SELECT 
@@ -298,9 +311,9 @@ def transform_data():
                             ,posting_date
                             ,type_work
                             ,city
-                            ,prov
-                            ,CAST(lat AS FLOAT) lat
-                            ,CAST(long AS FLOAT) long
+                            ,COALESCE(NULLIF(prov, ''), 'UNKNOWN') AS prov
+                            ,COALESCE(CAST(lat AS FLOAT), 0) AS lat
+                            ,COALESCE(CAST(long AS FLOAT), 0) AS long
                             ,classification
                             ,company
                             ,min_salary
