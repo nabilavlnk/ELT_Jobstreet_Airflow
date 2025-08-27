@@ -329,7 +329,7 @@ fig = px.line(
 
 fig.update_yaxes(
     tickmode='linear',
-    dtick=1,
+    dtick=5,
     tickformat=',d'
 )
 
