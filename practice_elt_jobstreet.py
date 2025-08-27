@@ -9,7 +9,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from impala.dbapi import connect
 import pandas as pd
 import logging
@@ -155,7 +155,9 @@ def fetch_html():
                if len(driver.window_handles) > 1:
                    driver.close()
                    driver.switch_to.window(driver.window_handles[0])
-            
+
+        scraped_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
         all_data = pd.DataFrame({
              'job_titles':job_titles
              ,'dates':dates
@@ -164,6 +166,7 @@ def fetch_html():
              ,'classification':classification
              ,'company':company
              ,'salary':salary
+             ,'scraped_at': scraped_at
         })
 
         print(all_data.head())
@@ -189,7 +192,7 @@ def insert_to_impala():
 
     insert_query = """
         INSERT INTO nabila.tmp_result_scrape_jobstreet PARTITION (load_date='{}')
-        SELECT %s, %s, %s, %s, %s, %s, %s
+        SELECT %s, %s, %s, %s, %s, %s, %s, %s
         """.format(pd.Timestamp.now().strftime('%Y-%m-%d'))
 
     all_data = pd.read_csv('/opt/airflow/output/scraped_data.csv')
@@ -230,19 +233,24 @@ def transform_data():
                             ) AS INT
                             ),0
                             ) AS max_salary
+<<<<<<< HEAD
+=======
+                            ,scraped_at
+>>>>>>> 51914e6 (update table)
                         FROM nabila.tmp_result_scrape_jobstreet
                         ) 
                         ,tmp_2 AS(
                         SELECT
                             job_titles
                             ,dates
-                            ,CASE
-                                WHEN time_unit = 'detik' THEN NOW() -- anggap tetap hari ini
-                                WHEN time_unit = 'menit' THEN NOW()
-                                WHEN time_unit = 'jam' THEN NOW()
-                                WHEN time_unit = 'hari' THEN DATE_SUB(NOW(), time_value)
-                            ELSE DATE_SUB(NOW(), 31)
-                            END AS posting_date
+                            ,CAST(
+                                CASE
+                                    WHEN time_unit = 'detik' THEN from_unixtime(unix_timestamp(scraped_at) - time_value)
+                                    WHEN time_unit = 'menit' THEN from_unixtime(unix_timestamp(scraped_at) - time_value * 60)
+                                    WHEN time_unit = 'jam'   THEN from_unixtime(unix_timestamp(scraped_at) - time_value * 3600)
+                                    WHEN time_unit = 'hari'  THEN from_unixtime(unix_timestamp(scraped_at) - time_value * 86400)
+                                ELSE from_unixtime(unix_timestamp(scraped_at) - 31 * 86400)
+                            END AS DATE) AS posting_date
                             ,type_work
                             ,UPPER(TRIM(city)) AS city
                             ,UPPER(TRIM(prov)) AS prov
@@ -251,6 +259,7 @@ def transform_data():
                             ,min_salary
                             ,max_salary
                             ,CAST((min_salary+max_salary)/2 as INT) AS avg_salary
+                            ,scraped_at
                         FROM tmp_1
                         ) 
                         ,tmp_3 AS(
@@ -265,6 +274,7 @@ def transform_data():
                             ,min_salary
                             ,max_salary
                             ,avg_salary
+                            ,scraped_at
                             ,ROW_NUMBER() OVER (PARTITION BY job_titles, company ORDER BY posting_date DESC) AS rn
                         FROM tmp_2
                         ) 
@@ -284,6 +294,7 @@ def transform_data():
                             ,min_salary
                             ,max_salary
                             ,avg_salary
+                            ,scraped_at
                         FROM tmp_3
                         WHERE rn = 1
                         ) 
@@ -299,6 +310,7 @@ def transform_data():
                             ,a.min_salary
                             ,a.max_salary
                             ,a.avg_salary
+                            ,a.scraped_at
                             ,b.lat as lat
                             ,b.long as long
                         FROM tmp_4 a
@@ -319,6 +331,7 @@ def transform_data():
                             ,min_salary
                             ,max_salary
                             ,avg_salary
+                            ,scraped_at
                         FROM tmp_5
                         """
      
