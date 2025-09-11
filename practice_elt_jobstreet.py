@@ -233,11 +233,9 @@ def transform_data():
                             ) AS INT
                             ),0
                             ) AS max_salary
-<<<<<<< HEAD
-=======
                             ,scraped_at
->>>>>>> 51914e6 (update table)
                         FROM nabila.tmp_result_scrape_jobstreet
+                        WHERE load_date = CURRENT_DATE()
                         ) 
                         ,tmp_2 AS(
                         SELECT
@@ -317,10 +315,9 @@ def transform_data():
                         LEFT JOIN nabila.long_lat_prov_ind b
                         ON a.prov = b.name
                         )
-                        INSERT OVERWRITE TABLE nabila.result_scrape_jobstreet
+                        INSERT INTO TABLE nabila.result_scrape_jobstreet PARTITION (posting_date)
                         SELECT 
                             job_titles
-                            ,posting_date
                             ,type_work
                             ,city
                             ,COALESCE(NULLIF(prov, ''), 'UNKNOWN') AS prov
@@ -331,7 +328,7 @@ def transform_data():
                             ,min_salary
                             ,max_salary
                             ,avg_salary
-                            ,scraped_at
+                            ,posting_date
                         FROM tmp_5
                         """
      
