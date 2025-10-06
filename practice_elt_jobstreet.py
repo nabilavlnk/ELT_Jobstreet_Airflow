@@ -360,7 +360,7 @@ default_args = {
 
 with DAG(dag_id='practice_elt_jobstreet',
          start_date=datetime(2025, 7, 1),
-         schedule_interval="0 11 * * 1-5",
+         schedule_interval="0 10 * * 1-5",
          catchup=False) as dag:
         
         fetch_html = PythonOperator(
