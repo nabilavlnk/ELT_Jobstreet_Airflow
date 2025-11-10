@@ -64,7 +64,7 @@ def fetch_html():
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.get(website)
      
-        for i in range(20):
+        for i in range(3):
            job_buttons = driver.find_elements(By.XPATH, '//article[@data-testid="job-card"]')
 
            if i >= len(job_buttons):
@@ -210,6 +210,12 @@ def transform_data():
      transform_query = """
                         WITH 
                         tmp_1 AS(
+                        SELECT DISTINCT
+                            job_titles
+                            ,company
+                        FROM nabila.result_scrape_jobstreet
+                        )
+                        ,tmp_2 AS(
                         SELECT
                             job_titles
                             ,dates
@@ -237,7 +243,7 @@ def transform_data():
                         FROM nabila.tmp_result_scrape_jobstreet
                         WHERE load_date = CURRENT_DATE()
                         ) 
-                        ,tmp_2 AS(
+                        ,tmp_3 AS(
                         SELECT
                             job_titles
                             ,dates
@@ -258,9 +264,9 @@ def transform_data():
                             ,max_salary
                             ,CAST((min_salary+max_salary)/2 as INT) AS avg_salary
                             ,scraped_at
-                        FROM tmp_1
+                        FROM tmp_2
                         ) 
-                        ,tmp_3 AS(
+                        ,tmp_4 AS(
                         SELECT
                             job_titles
                             ,CAST(posting_date as date) as posting_date
@@ -274,9 +280,9 @@ def transform_data():
                             ,avg_salary
                             ,scraped_at
                             ,ROW_NUMBER() OVER (PARTITION BY job_titles, company ORDER BY posting_date DESC) AS rn
-                        FROM tmp_2
+                        FROM tmp_3
                         ) 
-                        ,tmp_4 AS(
+                        ,tmp_5 AS(
                         SELECT
                             job_titles
                             ,posting_date
@@ -293,10 +299,10 @@ def transform_data():
                             ,max_salary
                             ,avg_salary
                             ,scraped_at
-                        FROM tmp_3
+                        FROM tmp_4
                         WHERE rn = 1
                         ) 
-                        ,tmp_5 AS(
+                        ,tmp_6 AS(
                         SELECT
                             a.job_titles
                             ,a.posting_date
@@ -311,11 +317,20 @@ def transform_data():
                             ,a.scraped_at
                             ,b.lat as lat
                             ,b.long as long
-                        FROM tmp_4 a
+                        FROM tmp_5 a
                         LEFT JOIN nabila.long_lat_prov_ind b
                         ON a.prov = b.name
                         )
-                        INSERT INTO TABLE nabila.result_scrape_jobstreet PARTITION (posting_date)
+                        ,tmp_7 AS(
+                        SELECT
+                            a.*
+                        FROM tmp_6 a
+                        LEFT JOIN tmp_1 b
+                        ON b.job_titles = a.job_titles
+                        AND b.company = a.company
+                        WHERE COALESCE(b.job_titles, '') = ''
+                        )
+                        INSERT OVERWRITE TABLE nabila.result_scrape_jobstreet PARTITION (posting_date)
                         SELECT 
                             job_titles
                             ,type_work
@@ -329,7 +344,7 @@ def transform_data():
                             ,max_salary
                             ,avg_salary
                             ,posting_date
-                        FROM tmp_5
+                        FROM tmp_7
                         """
      
      cursor.execute(transform_query)
@@ -365,7 +380,8 @@ with DAG(dag_id='practice_elt_jobstreet',
         
         fetch_html = PythonOperator(
         task_id='fetch_html',
-        python_callable=fetch_html
+        python_callable=fetch_html,
+        execution_timeout=timedelta(minutes=10)
         )
 
         insert_to_impala = PythonOperator(
