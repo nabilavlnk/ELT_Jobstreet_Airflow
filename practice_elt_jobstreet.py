@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from dotenv import load_dotenv
+import undetected_chromedriver as uc
 from pathlib import Path
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -34,7 +35,7 @@ load_dotenv(dotenv_path)
 # -------------------------- Function Code -------------------------- #
 def fetch_html():
         filter = Variable.get("job_filter", default_var="")
-        base_url = f'https://id.jobstreet.com/id/{filter}-jobs' if filter else 'https://id.jobstreet.com/id/jobs'
+        base_url = f'https://id.jobstreet.com/id/{filter}-jobs?sortmode=ListedDate' if filter else 'https://id.jobstreet.com/id/jobs?sortmode=ListedDate'
         path = "/usr/bin/chromedriver"
         service = Service(path)
 
@@ -58,13 +59,14 @@ def fetch_html():
         company = []
         salary = []
         dates = []
+        qualifications = []
 
         
         website = f'{base_url}'
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.get(website)
      
-        for i in range(3):
+        for i in range(20):
            job_buttons = driver.find_elements(By.XPATH, '//article[@data-testid="job-card"]')
 
            if i >= len(job_buttons):
@@ -121,6 +123,11 @@ def fetch_html():
 
                except:
                    salary_text = None
+
+               #qualifications 
+               qualifications_section = wait.until( EC.presence_of_element_located((By.XPATH, "//*[self::strong or self::h3 or self::p or self::span][contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'qualification') or contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'requirement') or contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'kualifikasi') or contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'persyaratan')]/following::ul[1]"))) 
+               items = qualifications_section.find_elements(By.TAG_NAME, "li") 
+               qualifications_element = [i.text.strip() for i in items]
                
                time.sleep(2)
 
@@ -143,6 +150,9 @@ def fetch_html():
                company.append(company_text)
 
                salary.append(salary_text)
+
+               qualifications_text = "; ".join(qualifications_element) 
+               qualifications.append(qualifications_text)
 
                print(f"{i+1}. {date_text}")
 
@@ -167,6 +177,7 @@ def fetch_html():
              ,'company':company
              ,'salary':salary
              ,'scraped_at': scraped_at
+             ,'qualifications':qualifications
         })
 
         print(all_data.head())
@@ -192,7 +203,7 @@ def insert_to_impala():
 
     insert_query = """
         INSERT INTO nabila.tmp_result_scrape_jobstreet PARTITION (load_date='{}')
-        SELECT %s, %s, %s, %s, %s, %s, %s, %s
+        SELECT %s, %s, %s, %s, %s, %s, %s, %s, %s
         """.format(pd.Timestamp.now().strftime('%Y-%m-%d'))
 
     all_data = pd.read_csv('/opt/airflow/output/scraped_data.csv')
@@ -240,6 +251,7 @@ def transform_data():
                             ),0
                             ) AS max_salary
                             ,scraped_at
+                            ,regexp_replace(lower(qualifications), '[^a-z0-9,; ]', '') AS qualifications
                         FROM nabila.tmp_result_scrape_jobstreet
                         WHERE load_date = CURRENT_DATE()
                         ) 
@@ -264,7 +276,11 @@ def transform_data():
                             ,max_salary
                             ,CAST((min_salary+max_salary)/2 as INT) AS avg_salary
                             ,scraped_at
+                            ,SPLIT_PART(`qualifications`, ';', 1) AS skill_1
+                            ,SPLIT_PART(`qualifications`, ';', 2) AS skill_2
+                            ,SPLIT_PART(`qualifications`, ';', 3) AS skill_3
                         FROM tmp_2
+                        WHERE qualifications NOT RLIKE '(what|how|berapa|which|kamu|expected|gaji|salary|senin)'
                         ) 
                         ,tmp_4 AS(
                         SELECT
@@ -279,6 +295,9 @@ def transform_data():
                             ,max_salary
                             ,avg_salary
                             ,scraped_at
+                            ,skill_1
+                            ,skill_2
+                            ,skill_3
                             ,ROW_NUMBER() OVER (PARTITION BY job_titles, company ORDER BY posting_date DESC) AS rn
                         FROM tmp_3
                         ) 
@@ -299,6 +318,9 @@ def transform_data():
                             ,max_salary
                             ,avg_salary
                             ,scraped_at
+                            ,skill_1
+                            ,skill_2
+                            ,skill_3
                         FROM tmp_4
                         WHERE rn = 1
                         ) 
@@ -315,6 +337,9 @@ def transform_data():
                             ,a.max_salary
                             ,a.avg_salary
                             ,a.scraped_at
+                            ,a.skill_1
+                            ,a.skill_2
+                            ,a.skill_3
                             ,b.lat as lat
                             ,b.long as long
                         FROM tmp_5 a
@@ -343,6 +368,9 @@ def transform_data():
                             ,min_salary
                             ,max_salary
                             ,avg_salary
+                            ,skill_1
+                            ,skill_2
+                            ,skill_3
                             ,posting_date
                         FROM tmp_7
                         """
