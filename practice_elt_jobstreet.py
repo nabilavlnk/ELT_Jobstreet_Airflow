@@ -35,7 +35,7 @@ load_dotenv(dotenv_path)
 # -------------------------- Function Code -------------------------- #
 def fetch_html():
         filter = Variable.get("job_filter", default_var="")
-        base_url = f'https://id.jobstreet.com/id/{filter}-jobs?sortmode=ListedDate' if filter else 'https://id.jobstreet.com/id/jobs?sortmode=ListedDate'
+        base_url = f'https://id.jobstreet.com/id/{filter}-jobs?sortmode=ListedDate' if filter else 'https://id.jobstreet.com/id/jobs-in-information-communication-technology?sortmode=ListedDate'
         path = "/usr/bin/chromedriver"
         service = Service(path)
 
@@ -61,13 +61,22 @@ def fetch_html():
         dates = []
         qualifications = []
 
-        
         website = f'{base_url}'
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.get(website)
+
+        last_height = driver.execute_script("return document.body.scrollHeight")
+        while True:
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+            new_height = driver.execute_script("return document.body.scrollHeight")
+            if new_height == last_height:
+                 break
+            last_height = new_height
+        
+        job_buttons = driver.find_elements(By.XPATH, '//article[@data-testid="job-card"]')
      
-        for i in range(20):
-           job_buttons = driver.find_elements(By.XPATH, '//article[@data-testid="job-card"]')
+        for i in range(len(job_buttons)):
 
            if i >= len(job_buttons):
                print(f"Index {i} out of range, only {len(job_buttons)} jobs found.")
@@ -251,10 +260,28 @@ def transform_data():
                             ),0
                             ) AS max_salary
                             ,scraped_at
-                            ,regexp_replace(lower(qualifications), '[^a-z0-9,; ]', '') AS qualifications
+                            ,TRIM(regexp_replace(lower(qualifications), '[^a-z ]', ' ')) AS qualifications
                         FROM nabila.tmp_result_scrape_jobstreet
                         WHERE load_date = CURRENT_DATE()
                         ) 
+                        ,tmp_no_whitespace AS(
+                        SELECT
+                            job_titles
+                            ,dates
+                            ,time_value
+                            ,time_unit
+                            ,type_work
+                            ,city
+                            ,prov
+                            ,classification
+                            ,company
+                            ,salary
+                            ,min_salary
+                            ,max_salary
+                            ,scraped_at
+                            ,trim(regexp_replace(qualifications, '\\\\s+', ' ')) AS qualifications
+                        FROM tmp_2
+                        )
                         ,tmp_3 AS(
                         SELECT
                             job_titles
@@ -276,10 +303,8 @@ def transform_data():
                             ,max_salary
                             ,CAST((min_salary+max_salary)/2 as INT) AS avg_salary
                             ,scraped_at
-                            ,SPLIT_PART(`qualifications`, ';', 1) AS skill_1
-                            ,SPLIT_PART(`qualifications`, ';', 2) AS skill_2
-                            ,SPLIT_PART(`qualifications`, ';', 3) AS skill_3
-                        FROM tmp_2
+                            ,qualifications
+                        FROM tmp_no_whitespace
                         WHERE qualifications NOT RLIKE '(what|how|berapa|which|kamu|expected|gaji|salary|senin)'
                         ) 
                         ,tmp_4 AS(
@@ -295,9 +320,7 @@ def transform_data():
                             ,max_salary
                             ,avg_salary
                             ,scraped_at
-                            ,skill_1
-                            ,skill_2
-                            ,skill_3
+                            ,qualifications
                             ,ROW_NUMBER() OVER (PARTITION BY job_titles, company ORDER BY posting_date DESC) AS rn
                         FROM tmp_3
                         ) 
@@ -318,9 +341,7 @@ def transform_data():
                             ,max_salary
                             ,avg_salary
                             ,scraped_at
-                            ,skill_1
-                            ,skill_2
-                            ,skill_3
+                            ,qualifications
                         FROM tmp_4
                         WHERE rn = 1
                         ) 
@@ -337,9 +358,7 @@ def transform_data():
                             ,a.max_salary
                             ,a.avg_salary
                             ,a.scraped_at
-                            ,a.skill_1
-                            ,a.skill_2
-                            ,a.skill_3
+                            ,a.qualifications
                             ,b.lat as lat
                             ,b.long as long
                         FROM tmp_5 a
@@ -368,9 +387,7 @@ def transform_data():
                             ,min_salary
                             ,max_salary
                             ,avg_salary
-                            ,skill_1
-                            ,skill_2
-                            ,skill_3
+                            ,qualifications
                             ,posting_date
                         FROM tmp_7
                         """
