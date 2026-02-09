@@ -56,7 +56,7 @@ if page == "Home":
     st.columns(3)[2].markdown("#### 🧪 Transform\nPerforming data transformation in Impala.")
     st.divider()
 
-    ####################### ELT PIPELINE #######################
+    # ELT PIPELINE
     st.markdown("### ⚙️ ELT Pipeline")
     st.image("ELT_Scraping_Jobstreet.drawio.png", caption="ELT Pipeline", use_container_width=True)
     st.divider()
@@ -110,12 +110,12 @@ if page == "Home":
 
     st.divider()
 
-    ####################### DETAIL AIRFLOW #######################
+    # DETAIL AIRFLOW 
     st.markdown("### 🧩 Details of the Airflow Process")
     st.image("Detail Airflow.png", caption="Airflow Process", use_container_width=True)
     st.divider()
 
-    ####################### DATA PREVIEW #######################
+    # DATA PREVIEW 
     st.markdown("### 📊 Preview Data Jobstreet")
     st.markdown("Example of data from scraping and transformation:")
     st.dataframe(data)
@@ -123,7 +123,6 @@ if page == "Home":
 
 ####################### DASHBOARD #######################
 elif page == "Dashboard":
-    st.markdown("### 📈 Visualization Dashboard")
 
     with st.sidebar.expander("📍 Filter Provinsi", expanded=False):
         select_all = st.checkbox("Select All", value=True, key="select_all_prov")
@@ -195,6 +194,8 @@ elif page == "Dashboard":
         .astype(float)         # ubah ke float
     )
 
+    st.markdown("### 📈 Visualization Dashboard")
+
     # Hitung unique
     total_job_titles = filtered_data['job_titles'].count()
     total_companies = filtered_data['company'].nunique()
@@ -202,7 +203,7 @@ elif page == "Dashboard":
     max_salary = filtered_data['max_salary'].max()
     avg_salary = filtered_data['avg_salary'].mean()
 
-    ####### METRICS
+    # METRICS
     col1, col2, col3, col4, col5 = st.columns([1, 1, 1.5, 1.5, 1.5])
 
     with col1:
@@ -220,7 +221,7 @@ elif page == "Dashboard":
     with col5:
         st.metric("Maximum Salary", f"Rp {max_salary:,.0f}")
 
-    ####### MAP
+    # MAP
     df_job_count = filtered_data.groupby('prov').size().reset_index(name='job_count')
     df_latlong = filtered_data[['prov', 'lat', 'long']].drop_duplicates()
     df_map = df_job_count.merge(df_latlong, on='prov', how='left')
@@ -240,7 +241,7 @@ elif page == "Dashboard":
         zoom=4
     )
 
-    ####### LINE CHART POSTING PER TANGGAL DAN JOB TITLE
+    # LINE CHART POSTING PER TANGGAL DAN JOB TITLE
     # datetime
     job_count = filtered_data.groupby(['posting_date']).size().reset_index(name='total_postings')
     job_count['posting_date'] = pd.to_datetime(job_count['posting_date'])
@@ -301,7 +302,7 @@ elif page == "Dashboard":
         title='Job Posts by Date'
     )
 
-    ####### KOLOM MAP & LINE CHART
+    # KOLOM MAP & LINE CHART
 
     col_map, col_line = st.columns([2, 2]) 
 
@@ -317,7 +318,7 @@ elif page == "Dashboard":
         st.subheader("Job Postings Trend by Date")
         st.altair_chart(final_chart, use_container_width=True)
 
-    ####### LINE CHART DATE & CLASS
+    # LINE CHART DATE & CLASS
     filtered_data['posting_date'] = pd.to_datetime(filtered_data['posting_date'])
 
     grouped = filtered_data.groupby(['posting_date', 'classification']).size().reset_index(name='count')
@@ -347,7 +348,7 @@ elif page == "Dashboard":
 
     st.plotly_chart(fig, use_container_width=True)
 
-    ####### PIE CHART TYPE WORK
+    # PIE CHART TYPE WORK
     type_counts = filtered_data['type_work'].value_counts().reset_index()
     type_counts.columns = ['type_work', 'count']
     type_counts['percent'] = (type_counts['count'] / type_counts['count'].sum() * 100).round(2)
@@ -361,7 +362,7 @@ elif page == "Dashboard":
         height=400
     )
 
-    ####### BAR CHART JOB_TITLES PER CLASSIFICATION
+    # BAR CHART JOB_TITLES PER CLASSIFICATION
     classification_counts = filtered_data.groupby('classification')['job_titles'].count().reset_index()
     classification_counts = classification_counts.sort_values(by='job_titles', ascending=False)
 
@@ -376,7 +377,7 @@ elif page == "Dashboard":
         height=400
     )
 
-    ####### BAR CHART JOB_TITLES PER COMPANY
+    # BAR CHART JOB_TITLES PER COMPANY
     company_counts = filtered_data.groupby('company').size().reset_index(name='job_count')
     print(company_counts.dtypes)
     print(company_counts.head())
@@ -393,7 +394,7 @@ elif page == "Dashboard":
         height=400
     )
 
-    ####### KOLOM PIE, BAR, BAR
+    # KOLOM PIE, BAR, BAR
     col_type, col_class, col_comp = st.columns([2,2,2])
 
     with col_type:
@@ -408,7 +409,7 @@ elif page == "Dashboard":
         st.subheader("Total of Vacancies per Company")
         st.altair_chart(bar_comp, use_container_width=True)
 
-    ####### BAR CHART PROV & CLASS
+    # BAR CHART PROV & CLASS
     prov_class = filtered_data.groupby(['prov', 'classification'])['job_titles'].count().reset_index()
     bar_prov_class = alt.Chart(prov_class).mark_bar().encode(
         x=alt.X('prov:N', title='Provinsi'),
@@ -422,7 +423,7 @@ elif page == "Dashboard":
     st.subheader("Total of Job Vacancies by Province and Classification")
     st.altair_chart(bar_prov_class, use_container_width=True)
 
-    ####### TABLE TOP COMPANY
+    # TABLE TOP COMPANY
     top_company_salary = (
         filtered_data.groupby('company')
         .agg(avg_salary=('avg_salary', 'mean'), job_count=('job_titles', 'count'))
@@ -432,7 +433,7 @@ elif page == "Dashboard":
     )
     top_company_salary = top_company_salary[['company', 'avg_salary']]
 
-    ####### TABLE TOP PROVINCE
+    # TABLE TOP PROVINCE
     top_province_salary = (
         filtered_data.groupby('prov')
         .agg(avg_salary=('avg_salary', 'mean'), job_count=('job_titles', 'count'))
@@ -442,7 +443,7 @@ elif page == "Dashboard":
     )
     top_province_salary = top_province_salary[['prov', 'avg_salary']]
 
-    ####### TABLE TOP CLASS
+    # TABLE TOP CLASS
     top_class_salary = (
         filtered_data.groupby('classification')
         .agg(avg_salary=('avg_salary', 'mean'), job_count=('job_titles', 'count'))
@@ -452,7 +453,7 @@ elif page == "Dashboard":
     )
     top_class_salary = top_class_salary[['classification', 'avg_salary']]
 
-    ####### KOLOM 3 TOP TABLE
+    # KOLOM 3 TOP TABLE
     col_top_comp, col_top_sal, col_top_class = st.columns([2,2,2])
 
     with col_top_comp:
@@ -467,4 +468,26 @@ elif page == "Dashboard":
         st.subheader("Top 5 Highest-Paying Class")
         st.dataframe(top_class_salary, hide_index=True, use_container_width=True)
 
-    st.divider()
+###################### MACHINE LEARNING #######################
+
+elif page == "Machine Learning":
+    st.markdown("### 📈 Recommendation of Job Vacancies Using Cosine Similarity")
+    
+    user_input = st.text_area(
+    "Masukkan Skill Kamu",
+    placeholder="Contoh: Python, SQL, Data Analysis, Machine Learning...")
+
+    if st.button("Find Job"):
+        if user_input.strip() == "":
+            st.warning("Silakan masukkan skill terlebih dahulu.")
+        else:
+            # results = recommend_jobs(user_input)
+
+            st.subheader("Top Recommendations")
+
+            # for i, job in enumerate(results, 1):
+            #     st.markdown(f"### {i}. {job['title']}")
+            #     st.write(f"🏢 {job['company']}")
+            #     st.write(f"Similarity Score: {job['score']:.4f}")
+            #     st.progress(float(job["score"]))
+            #     st.markdown("---")
