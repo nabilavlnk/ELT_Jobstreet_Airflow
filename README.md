@@ -35,6 +35,9 @@ Data yang sudah bersih kemudian divisualisasikan di Streamlit. Hasilnya berupa g
 
 ---
 
+Demo Program:
+https://drive.google.com/file/d/1P6zgy60h2HTmVodQChDVJ0r705q_X3Hz/view?usp=drive_link
+
 📈 Sumber Data
 - Website Jobstreet
 - Geolokasi dari dataset provinsi Indonesia
